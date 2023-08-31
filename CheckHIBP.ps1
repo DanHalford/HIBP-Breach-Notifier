@@ -34,7 +34,7 @@ Import-Module PSSQLite
 $hibpkey = "<<key>>"
 #Path to the SQLite database. If the file does not exist, it will be created.
 $database = "./hibp.db"
-#Rate limit in requests per minute. The rate limit is deetermined by the HIBP subscription type. See https://haveibeenpwned.com/API/Key.
+#Rate limit in requests per minute. The rate limit is determined by the HIBP subscription type. See https://haveibeenpwned.com/API/Key. The script will check your HIBP subscription and update the rate limit as appropriate
 $rateLimit = 10
 #endregion
 
@@ -73,6 +73,29 @@ CREATE TABLE IF NOT EXISTS breaches (
 
 <#
 .SYNOPSIS
+Checks the Have I Been Pwned subscription status, and if valid, sets the API rate limit.
+
+.OUTPUTS
+True if the subscription is valid, false if not.
+
+#>
+function Check-HIBPSubscription() {
+    $uri = "https://haveibeenpwned.com/api/v3/subscription/status"
+    $headers = @{
+        "hibp-api-key" = $hibpkey
+    }
+    try {
+        $response = Invoke-RestMethod -Uri $uri -Headers $headers
+        $rateLimit = $response.Rpm
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
+<#
+.SYNOPSIS
 Queries "Have I Been Pwned" for breaches associated with an email address.
 
 .DESCRIPTION
@@ -80,6 +103,9 @@ Queries "Have I Been Pwned" for breaches associated with an email address. Retur
 
 .PARAMETER email
 The email address to query.
+
+.OUTPUTS
+A collection of breach objects, as returned by the Have I Been Pwned API.
 
 .NOTES
 If no breaches are found for the specified address, the API returns a 404 error. This is caught and null is returned instead.
@@ -218,7 +244,18 @@ function Send-Notification() {
 }
 
 Create-HIBPDatabase
-Connect-MgGraph -NoWelcome -Scopes "User.Read.All, Mail.Send"
+$hibpSubscription = Check-HIBPSubscription
+if ($hibpSubscription -eq $false) {
+    Write-Output "HIBP subscription is invalid"
+    exit
+}
+try {
+    Connect-MgGraph -NoWelcome -Scopes "User.Read.All, Mail.Send"
+}
+catch {
+    Write-Output "Unable to connect to Graph API"
+    exit
+}
 $users = Get-MgUser -Select "id,mail,DisplayName,GivenName" | Where-Object { $_.mail -ne $null }
 
 $users | ForEach-Object {
