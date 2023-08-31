@@ -1,0 +1,51 @@
+<html>
+    <head>
+        <style>
+            body {
+                background-color: white;
+                padding: 20px;
+                font-family:Arial, Helvetica, sans-serif;
+            }
+            table {
+                border-collapse: collapse;
+            }
+            table, th, td {
+                border: 1px solid #ddd;
+            }
+            th, td {
+                padding: 5px;
+            }
+            th {
+                text-align: left;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>New Security Breach Detected</h1>
+        <p style="border:1px solid red; padding: 10px; background: #FFAAAA">
+            <strong>Note:</strong> This message does not indicate that you have done anything wrong. Rather, an external service that you signed up to using your email address has suffered a security breach and some information related to you has been leaked.
+        </p>
+        <p>
+            Hi {{firstName}}
+        </p>
+        <p>
+            <strong>Org Name</strong> regularly scans the internet for security breaches and has detected that your email address has been leaked in the following {{breach}}:
+        </p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Service</th>
+                    <th>Leaked Data</th>
+                    <th>Leaked Date</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{tablerows}}
+            </tbody>
+        </table>
+        <p><strong>Org Name</strong> suggests that you change the passwords of all the accounts affected. We cannot help you do this, but are happy to provide advice.</p>
+        <p>Regards</p>
+        <p><strong>Org</strong> admin</p>
+    </body>
+</html>
