@@ -1,7 +1,7 @@
 # Breach Notifier
 ## Check organisation email addresses against Have I Been Pwned and notify end users of any breaches.
 
-Whlie not directly related to organisational IT security, end users do have a tendancy to re-use passwords between accounts, or at least use passwords that fit a recognised pattern. It is therefore a good idea to scan disclosed breaches to see if any of your organisation's email addresses have been included, and to inform the end user that their data or details might have been compromised.
+While not directly related to organisational IT security, end users do have a tendancy to re-use passwords between accounts, or at least use passwords that fit a recognised pattern. It is therefore a good idea to scan disclosed breaches to see if any of your organisation's email addresses have been included, and to inform the end user that their data or details might have been compromised.
 
 This script returns details of all users in your Azure tenancy and then utilises the excellent [Have I Been Pwned](https://haveibeenpwned.com/) API to determine if any of them have been included in any breaches. The script will then send the end-user a formatted notification email detailing what breaches have occurred, and any other details HIBP makes available.
 
