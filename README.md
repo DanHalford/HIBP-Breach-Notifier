@@ -16,10 +16,12 @@ Details of each breach are stored in a local SQLite database. When the script is
     - Microsoft.Graph.Authentication
     - Microsoft.Graph.Users.Actions
     - PSSQLite
+- From a user comms perspective, consider sending an email saying this service is coming, so they don't immediate bombard your service desk with calls of assistance or phishing reports.
 
 ### Instructions
 
-Update the `$hibpkey` variable with your **Have I Been Pwned** API key. 
+Update the `$hibpkey` variable with your **Have I Been Pwned** API key.
+Update the **breachEmailTemplate.html** file to suit your organisation's name and branding.
 
 To avoid your users receiving a notifications of a large number of breaches, consider using the `-suppressEmails` switch to prevent emails being sent the first time you execute the script. Breach details will still be written to the database and displayed on the script output.
 
