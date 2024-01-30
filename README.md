@@ -16,7 +16,7 @@ Details of each breach are stored in a local SQLite database. When the script is
     - Microsoft.Graph.Authentication
     - Microsoft.Graph.Users.Actions
     - PSSQLite
-- From a user comms perspective, consider sending an email saying this service is coming, so they don't immediate bombard your service desk with calls of assistance or phishing reports.
+- From a user communicationss perspective, consider sending an email saying this service is coming, so they don't immediate bombard your service desk with calls for assistance or phishing reports.
 
 ### Instructions
 
