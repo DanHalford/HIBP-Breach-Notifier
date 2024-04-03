@@ -5,8 +5,11 @@ Checks to see if any corporate email addresses have been included in reported da
 .DESCRIPTION
 Checks to see if any corporate email addresses have been included in data breaches reported on Have I Been Pwned. If any breaches are found, an email is sent to the user notifying them of the breach. On subsequent executions, only new breaches are reported.
 
-.PARAMETER suppressEmails
+.PARAMETER SuppressEmails
 If specified, no emails will be sent to users. This is useful for testing the script.
+
+.PARAMETER IgnoreBefore
+If specified, breaches that occurred before the specified date will be ignored. Legacy breaches will still be written to the database, but will not form part of the alerts sent to the user.
 
 .NOTES
 File name: CheckHIBP.ps1
@@ -21,7 +24,8 @@ Pre-requisites:
 #>
 
 Param(
-    [switch]$suppressEmails
+    [switch]$SuppressEmails,
+    [datetime]$IgnoreBefore
 )
 
 Import-Module Microsoft.Graph.Users
@@ -31,11 +35,11 @@ Import-Module PSSQLite
 
 #region Constants
 #API key for "Have I Been Pwned". You can get one at https://haveibeenpwned.com/API/Key
-$hibpkey = "<<key>>"
+$global:hibpkey = "<<key>>"
 #Path to the SQLite database. If the file does not exist, it will be created.
-$database = "./hibp.db"
+$global:database = "./hibp.db"
 #Rate limit in requests per minute. The rate limit is determined by the HIBP subscription type. See https://haveibeenpwned.com/API/Key. The script will check your HIBP subscription and update the rate limit as appropriate
-$rateLimit = 10
+$global:rateLimit = 10
 #endregion
 
 <#
@@ -45,7 +49,7 @@ Creates a local SQLite database to store breach data.
 .DESCRIPTION
 Creates a local SQLite database to store breach data if it does not already exist. Database is created in the path specified in $database.
 #>
-function Create-HIBPDatabase() {
+function New-HIBPDatabase() {
     $sql = @"
 CREATE TABLE IF NOT EXISTS breaches (
     breachId UNIQUEIDENTIFIER PRIMARY KEY,
@@ -68,7 +72,7 @@ CREATE TABLE IF NOT EXISTS breaches (
     isMalware BOOLEAN
 );
 "@    
-    Invoke-SqliteQuery -DataSource $database -Query $sql
+    Invoke-SqliteQuery -DataSource $global:database -Query $sql
 }
 
 <#
@@ -79,14 +83,14 @@ Checks the Have I Been Pwned subscription status, and if valid, sets the API rat
 True if the subscription is valid, false if not.
 
 #>
-function Check-HIBPSubscription() {
+function Get-HIBPSubscription() {
     $uri = "https://haveibeenpwned.com/api/v3/subscription/status"
     $headers = @{
         "hibp-api-key" = $hibpkey
     }
     try {
         $response = Invoke-RestMethod -Uri $uri -Headers $headers
-        $rateLimit = $response.Rpm
+        $global:rateLimit = $response.Rpm
         return $true
     }
     catch {
@@ -141,7 +145,7 @@ The breach object, as returned by the Get-Breaches function.
 .PARAMETER email
 The email address to associate with the breach.
 #>
-function Store-Breach() {
+function Save-Breach() {
     Param(
         [Parameter(Mandatory=$true)]
         [object]$breach,
@@ -151,6 +155,7 @@ function Store-Breach() {
     $sql = "SELECT COUNT(*) FROM breaches WHERE email = '$email' AND name = '$($breach.Name)';"
     $breachId = [System.Guid]::NewGuid().ToString()
     $count = Invoke-SqliteQuery -DataSource $database -Query $sql
+    Write-Debug "Breach count query returned: $($count.'COUNT(*)')"
     if ($count.'COUNT(*)' -eq 0) {
         $sql = @"
 INSERT INTO breaches (
@@ -184,14 +189,14 @@ INSERT INTO breaches (
     '$($breach.Description.Replace("'", "''"))',
     '$($breach.LogoPath)',
     '$($breach.DataClasses -join ",")',
-    $($breach.IsVerified),
-    $($breach.IsFabricated),
-    $($breach.IsSensitive),
-    $($breach.IsRetired),
-    $($breach.IsSpamList)
+    $([int]$breach.IsVerified),
+    $([int]$breach.IsFabricated),
+    $([int]$breach.IsSensitive),
+    $([int]$breach.IsRetired),
+    $([int]$breach.IsSpamList)
 );
-"@
-        $result = Invoke-SqliteQuery -DataSource $database -Query $sql
+"@      
+$result = Invoke-SqliteQuery -DataSource $database -Query $sql
         
         Return $true
     } else {
@@ -220,13 +225,21 @@ function Send-Notification() {
         [Parameter(Mandatory=$true)]
         [object]$user,
         [Parameter(Mandatory=$true)]
-        [object]$breaches
+        [object]$breaches,
+        [datetime]$ignoreBefore
     )
+    $breachText = "breaches"
+    if ($breaches.Count -eq 1) {
+        $breachText = "breach"
+    }
     $from = Get-MgContext | Select-Object -ExpandProperty Account
     $body = Get-Content -Path ./breachEmailTemplate.html
     $body = $body -replace "{{firstName}}", $user.GivenName
-    $body = $body -replace "{{breach}}", ($breachs.Count -eq 1 ? "breach" : "breaches")
+    $body = $body -replace "{{breach}}", $breachText
     $breachRows = ""
+    if ($ignoreBefore -ne $null) {
+        $breaches = $breaches | Where-Object { [datetime]$_.AddedDate -ge [datetime]$ignoreBefore }
+    }
     $breaches | ForEach-Object {
         $breachRows += "<tr><td>$($_.Title)</td><td>$($_.DataClasses -join ", ")</td><td>$($_.BreachDate)</td><td>$($_.Description)</td></tr>"
     }
@@ -243,18 +256,25 @@ function Send-Notification() {
     Send-MgUserMail -BodyParameter $params -UserId $from
 }
 
-Create-HIBPDatabase
-$hibpSubscription = Check-HIBPSubscription
+New-HIBPDatabase
+$hibpSubscription = Get-HIBPSubscription
 if ($hibpSubscription -eq $false) {
     Write-Output "HIBP subscription is invalid"
     exit
 }
 try {
-    Connect-MgGraph -NoWelcome -Scopes "User.Read.All, Mail.Send"
+    if ($SuppressEmails) {
+        Connect-MgGraph -NoWelcome -Scopes "User.Read.All"
+    } else {
+        Connect-MgGraph -NoWelcome -Scopes "User.Read.All, Mail.Send"
+    }
 }
 catch {
     Write-Output "Unable to connect to Graph API"
     exit
+}
+if ($SuppressEmails) {
+    Write-Output "SuppressEmails switch specified - emails will not be sent"
 }
 $users = Get-MgUser -Select "id,mail,DisplayName,GivenName" | Where-Object { $_.mail -ne $null }
 
@@ -266,17 +286,23 @@ $users | ForEach-Object {
         Write-Output "No breaches found for $($email)"
     } else {
         $newBreachCount = 0
+        $newBreaches = @()
         $breaches | ForEach-Object {
-            $newBreach = Store-Breach -breach $_ -email $email
+            $newBreach = Save-Breach -breach $_ -email $email
             if ($newBreach) {
                 $newBreachCount++
-                Write-Host "New breach found for $($email): $($_.Name)"
+                $newBreaches += $_
+                Write-Output "New breach found for $($email): $($_.Name)"
             }
         }
         if ($newBreachCount -gt 0) {
             Write-Output "$($newBreachCount) new breaches found for $($email)"
-            Send-Notification -user $_ -breaches $breaches
-
+            if (-not $SuppressEmails) {
+                Send-Notification -user $_ -breaches $newBreaches -ignoreBefore $IgnoreBefore
+            } else {
+                Write-Output "Breach summary for $($email):"
+                $newBreaches | Where-Object { [datetime]$_.AddedDate -ge [datetime]$IgnoreBefore } | Select-Object Title, BreachDate, AddedDate, DataClasses
+            }
         } else {
             Write-Output "No new breaches found for $($email)"
         }

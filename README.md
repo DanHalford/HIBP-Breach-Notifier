@@ -16,16 +16,21 @@ Details of each breach are stored in a local SQLite database. When the script is
     - Microsoft.Graph.Authentication
     - Microsoft.Graph.Users.Actions
     - PSSQLite
-- From a user communicationss perspective, consider sending an email saying this service is coming, so they don't immediate bombard your service desk with calls for assistance or phishing reports.
+- From a user communications perspective, consider sending an email saying this service is coming, so they don't immediate bombard your service desk with calls for assistance or phishing reports.
 
 ### Instructions
 
 Update the `$hibpkey` variable with your **Have I Been Pwned** API key.
 Update the **breachEmailTemplate.html** file to suit your organisation's name and branding.
 
-To avoid your users receiving a notifications of a large number of breaches, consider using the `-suppressEmails` switch to prevent emails being sent the first time you execute the script. Breach details will still be written to the database and displayed on the script output.
+To avoid your users receiving a notifications of a large number of breaches, consider using the `-SuppressEmails` switch to prevent emails being sent the first time you execute the script. Breach details will still be written to the database and displayed on the script output.
+
+To avoid your users receiving notifications of breaches discovered many years ago, consider using the `-IgnoreBefore` parameter and specifying a date in YYYY-MM-DD format. Only breaches *discovered* after the date specified will be reported. As many data breaches remain undiscovered for months or years after they've happened, the breach date may be before the cut-off.
 
 To reset the stored breach details, simply delete the SQLite database. The path to the database is specified in the `$database` variable but defaults to **./hibp.db** 
 
 ### Notes
-Developed on PowerShell 7.3.6 running on MacOS, so should be properly cross-platform compatible.
+THe script should be properly cross-platform compatible and has been tested on:
+* PowerShell 5.1 running on Windows 11
+* PowerShell 7.4.1 running on Windows 11
+* PowerShell 7.3.6 running on MacOS
